@@ -2,7 +2,7 @@
 
 Por favor, revisa la versión en inglés de <a href="/tags/new-in-devtools/" translate="no">What's New In DevTools</a> para una lista completa de las características lanzadas. Debajo tienes más contenido que ha sido traducido al castellano.
 
-<!-- $content -->
+{{content}}
 
 <!-- ### Chrome 108 {: #chrome108 }
 

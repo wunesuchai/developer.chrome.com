@@ -2,7 +2,7 @@
 
 関連する機能の完全なリストは、<a href="/tags/new-in-devtools/" translate="no">What's New In DevTools</a> の英語版を参照してください。以下は、日本語に翻訳された内容の一部です。
 
-<!-- $content -->
+{{content}}
 
 <!-- ### Chrome 108 {: #chrome108 }
 
