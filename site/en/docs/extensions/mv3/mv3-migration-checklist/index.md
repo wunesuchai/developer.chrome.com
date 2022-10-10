@@ -2,7 +2,7 @@
 layout: 'layouts/doc-post.njk'
 title: "Manifest V3 migration checklist"
 date: 2019-11-02
-updated: 2020-11-11
+updated: 2022-10-08
 description: A quick reference on migrating your Chrome Extensions from Manifest V2 to Manifest V3.
 
 ---
@@ -11,125 +11,73 @@ This page provides a quick reference to help you identify any changes you might 
 make to an Manifest V2 extension so that it works under Manifest V3. For more
 description of the nature of these changes see the [Manifest V3 migration guide][mv3-migration-guide].
 
-
 ## API checklist {: #api_checklist }
 
 There are some changes you may need to make based on changes to the API surface. This section lists these changes.
 
-### Do you have host permissions in your manifest? {: #api-host-perms}
+### Update host permissions in your manifest {: #api-host-perms}
 
-*Host permissions in Manifest V3 [are a separate
-element][mv3-host-perms]; you don't specify them in
-`permissions` or `optional_permissions`.*
+*Host permissions in Manifest V3 are a separate element; you don't specify them in `permissions` or `optional_permissions`.*
 
-- Move host permissions into the `host_permissions` field in manifest.json.
+- [Move host permissions][mv3-host-perms] into the `host_permissions` field in the manifest.json.
 
-### Are you using background pages? {: #api-background-pages }
 
-*Background pages are [replaced by service workers][mv3-sw] in Manifest V3.*
+### Convert your background pages to a service worker {: #api-background-pages }
 
-- Replace `background.page` or `background.scripts` with `background.service_worker` in
-  manifest.json. Note that the `service_worker` field takes a string, not an array of strings.
-- Remove `background.persistent` from manifest.json.
-- Update background scripts to adapt to the service worker execution context.
+*Manifest V3 [uses service workers instead of background pages.*
 
-### Are you using the `browser_action` or `page_action` property in manifest.json? {: #api-browser-action-manifest}
+- Replace `background.page` or `background.scripts` with `background.service_worker` in the `manifest.json`. Note that the `service_worker` field takes a string, not an array of strings.
+- Remove `background.persistent` from the `manifest.json`.
+- [Update background scripts][background-to-sw] to adapt to the service worker execution context.
 
-*These properties are [unified into a single property][mv3-action] in Manifest V3.*
+### Consolidate the "browser_action" and "page_action" fields in the manifest.json {: #api-browser-action-manifest}
 
-- Replace these properties with `action`.
+*These fields are consolidated into a single field in Manifest V3.*
 
-### Are you using the `chrome.browserAction` or `chrome.pageAction` JavaScript API? {: #api-browser-action-js}
+- [Replace these fields][mv3-action] with `"action"`.
 
-*These two equivalent APIs are [unified into a single API][mv3-action] in Manifest V3.*
-- Migrate to the [Action API][api-action].
+### Consolidate the chrome.browserAction or chrome.pageAction callbacks {: #api-browser-action-js}
 
-### Are you currently using the blocking version of `chrome.webRequest`? {: #api-blocking}
+*These two equivalent APIs are [consolidated into a single callback in Manifest V3.*
 
-*This API is [replaced by `declarativeNetRequest`][mv3-network-request] in Manifest V3.*
+- [Replace these callbacks][mv3-action] with `chrome.action`.
 
-{% Aside %}
-This only applies to user-installed extensions; force installed extensions (extensions distributed using
-[ExtensionInstallForcelist][chromium-force-install]).
-These extensions &mdash; typically used in an enterprise setting &mdash; can
-still use the blocking version of `chrome.webRequest`. 
-{% endAside %}
 
-- Migrate request modification logic to `chrome.declarativeNetRequest` rules.
-- Replace the `webRequestBlocking` permission with `declarativeNetRequest`.
+### Replace the blocking version of chrome.webRequest with "chrome.declarativeNetRequest" {: #api-blocking}
+
+*Use `"chrome.declarativeNetRequest"` to replace the `chrome.webRequest` interface.*
+
+{% Aside %} This only applies to user-installed extensions. Force installed extensions (extensions distributed using ExtensionInstallForcelist and typically used in an enterprise setting) can still use the blocking version of chrome.webRequest. {% endAside %}
+
+- Replace request modification logic with `"chrome.declarativeNetRequest"` rules.
+- Replace the `"webRequestBlocking"` [permission][permissions] with `"declarativeNetRequest"`.
 - Remove the `webRequest` permission if you no longer need to observe network requests.
 - Remove unnecessary host permissions; blocking a request or upgrading a request's protocol
-  doesn't require host permissions with `declarativeNetRequest`.
+  doesn't require host permissions with `"declarativeNetRequest"`.
 
-### Are you using these scripting/CSS methods in the Tabs API? {: #api-tabs}
 
-*In Manifest V3, several methods move from the [Tabs API][api-tabs] to the [Scripting API][api-scripting].*
+### Use scripting/CSS methods in the Scripting interface {: #api-tabs}
 
-- Change any of the following Manifest V2 calls to use the correct Manifest V3 API:
+*In Manifest V3, several methods move from the [Tabs interface][api-tabs] to the [Scripting interface][api-scripting].*
 
-<table class="with-heading-tint">
-  <thead>
-    <tr>
-      <th>Manifest V2</th>
-      <th>Manifest V3</th>
-    </tr>
-  </thead>
-    <tr>
-      <td>tabs.executeScript()</td>
-      <td>scripting.executeScript()</td>
-    </tr>
-    <tr>
-      <td>tabs.insertCSS()</td>
-      <td>scripting.insertCSS()</td>
-    </tr>
-    <tr>
-      <td>tabs.removeCSS()</td>
-      <td>scripting.removeCSS()</td>
-    </tr>
-</table>
+- Move calls to `executeScript()`, `insertScript()`, and `removeCSS()` from the `tabs` interface to the `scripting` interface. See the [section in][mv3-scripting] *Migrating to Manifest V3* for information on changes to the objects passed to these functions.
 
-### Are you executing remote code or arbitrary strings? {: #api-remote-code}
 
-*You can no longer [execute external
-logic][mv3-remote-code] using `chrome.scripting.executeScript({code: '...'})`, `eval()`, and `new Function()`.*
 
-- Move all external code (JS, Wasm, CSS) into your extension bundle.
-- Update script and style references to load resources from the extension bundle.
-- Use [`chrome.runtime.getURL()`][runtime-geturl] to build resource URLs at runtime.
 
-### Are you executing functions that expect an Manifest V2 background context? {: #api-background-context}
-
-*The [adoption of service workers][mv3-sw] in Manifest V3 isn't compatible with methods like `chrome.runtime.getBackgroundPage()`,
-`chrome.extension.getBackgroundPage()`, `chrome.extension.getExtensionTabs()`,
-and `chrome.extension.getViews()`.*
-
-- Migrate to a design that [passes messages][doc-messages] between other contexts and the background service worker.
-
-## Security Checklist {: #security_checklist }
-
-There are some changes you may need to make based on changes in security policy. This section lists these changes.
-
-### Are you making CORS requests in content scripts? {: #security-cors }
-
-- Move these requests to the background service worker.
-
-### Are you using a custom `content_security_policy` in manifest.json? {: #security-csp }
-
-- Replace `content_security_policy` with `content_security_policy.extension_pages`
-  or `content_security_policy.sandbox` as appropriate.
-- Remove references to external domains in `script-src`, `worker-src`, `object-src`, and
-  `style-src` directives if present.
 
 [api-action]: /docs/extensions/reference/action
 [api-scripting]: /docs/extensions/reference/scripting
 [api-tabs]: /docs/extensions/reference/tabs
+[background-to-sw]: /docs/extensions/mv3/migrating_to_service_workers/
 [chromium-force-install]: https://www.chromium.org/administrators/policy-list-3#ExtensionInstallForcelist
 [mv3-action]: /docs/extensions/mv3/intro/mv3-migration#action-api-unification
 [mv3-host-perms]: /docs/extensions/mv3/intro/mv3-migration#host-permissions
 [mv3-migration-guide]: /docs/extensions/mv3/intro/mv3-migration
 [mv3-network-request]: /docs/extensions/mv3/intro/mv3-migration#modifying-network-requests
 [mv3-remote-code]: /docs/extensions/mv3/intro/mv3-migration#remotely-hosted-code
+[mv3-scripting]: /docs/extensions/mv3/intro/mv3-migration/#api-tabs
 [mv3-sw]: /docs/extensions/mv3/intro/mv3-migration#background-service-workers
+[permissions]: /docs/extensions/reference/permissions/
 [runtime-geturl]: /docs/extensions/reference/runtime/#method-getURL
 [doc-messages]: /docs/extensions/mv3/messaging/
-
