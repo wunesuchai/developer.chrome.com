@@ -201,56 +201,178 @@ This approach allows privacy-conscious users to withhold those permissions and s
 
 - Replace the `"tabs"` permission with the `"scripting"` permission in the `manifest.json` file.
 - Remove the `"host_permissions"` and `"activeTab"` permissions from the `manifest.json` file.
-- Change Manifest V2 methods to Manifest V3 methods as described below.
+- Move `executeScript()`, `insertCSS()`, and `removeCSS()` from the `tabs` interface to the `scripting` interface and do the follwing for all three:
+  - Replace the `InjectDetails` object with `ScriptInjection` object.
+  - Move the `tabID` from the method arguments to `scriptInjection.target`.
 
-#### Replace tabs.executeScript() with scripting.executeScript() {: #execute-script}
-
-- Replace the `InjectDetails` object with `ScriptInjection` object.
-- Move the `tabID` from the method arguments to `scriptInjection.target`.
+The example shows how do do this for `insertCSS()`. The procedure for `executeScript()` and `removeCSS()` is the same.
 
 {% Columns %}
 ```js
-chrome.tabs.executeScript(tabId, injectDetails, () => {
+chrome.tabs.insertScript(tabId, injectDetails, (executionResults) => {
   // callback function
 });
 ```
 
 ```js
-  chrome.scripting.executeScript({
-    target: { tabId: tab.id }
-  }, () => {
-    // callback function
-  })
-```
-{% endColumns %}
-
-#### Replace tabs.insertCSS() with scripting.insertCSS() {: #execute-script}
-
-{% Columns %}
-```js
-
-```
-
-```js
-chrome.scripting.insertCSS({
+chrome.scripting.insertCSS(
+  {
   files: ["style.css"],
   target: { tabId: tab.id },
+  }, (executionResults) => {
+    // callback function
+  }
+);
+```
+{% endColumns %}
+
+
+### Remove execution of remote code and arbitrary strings {: #api-remote-code}
+
+*You can no longer [execute external logic][mv3-remote-code] using `executeScript()`, `eval()`, and `new Function()`.*
+
+As stated above, `executeScript()` has moved from the `tabs` interface to the `scripting` interface and has a slightly different interface. Additionally:
+
+- All external code (JS, Wasm, CSS) must be part of your extension bundle.
+- Resources used by these files must also be part of your extension bundle.
+- Use [`chrome.runtime.getURL()`][runtime-geturl] to build resource URLs at runtime.
+
+### Replace functions that expect a Manifest V2 background context {: #api-background-context}
+
+*Extension scripts, `content.js` and `popup.js` specifically, cannot interact with [extension service workers][mv3-sw], the replacement for background scripts in Manifest V3.*
+
+- Locate calls that expect a bacground context: `chrome.runtime.getBackgroundPage()`, `chrome.extension.getBackgroundPage()`, `chrome.extension.getExtensionTabs()`, and `chrome.extension.getViews()`, specifically.
+- Replace them with messages passed via `sendMessage()` from extension scripts.
+- Intercept them in the extension service worker using the `onMessage` event handler.
+
+For more information, see [Message passing][doc-messages].
+
+### Remove CORS requests from content scripts {: #security-cors }
+
+- Move these requests to the background service worker.
+- Call [`fetch()`][mdn-fetch] rather than `XMLHttpRequest()`.
+
+```js
+fetch('https://www.example.com/data.json')
+.then(() => {
+  console.log('it worked!');
+})
+.catch(error => {
+  console.error(error);
 });
 ```
-{% endColumns %}
 
-#### Replace tabs.removeCSS() with scripting.removeCSS() {: #execute-script}
+### Use a custom content_security_policy in manifest.json? {: #content-security-policy }
+
+An extension's [content security policy][csp] (CSP) was specified in Manifest V2 as a string; inManifest V3 it is an object with members representing alternative CSP contexts.
+
+- Replace the value of `"content_security_policy"` with subfields named `"extension_pages"` and `"sandbox"` as appropriate.
+- Remove references to external domains in `script-src`, `worker-src`, `object-src`, and
+  `style-src` directives if present. 
+
 
 {% Columns %}
-```js
-
+```json
+// Manifest V2
+{
+  ...
+  "content_security_policy": "default-src 'self'"
+  ...
+}
 ```
 
-```js
-
+```json
+// Manifest V3
+{
+  ...
+  "content_security_policy": {
+    "extension_pages": "default-src 'self'",
+    "sandbox": "..."
+  }
+  ...
+}
 ```
 {% endColumns %}
 
+**`extension_pages`**:  This policy covers pages in your extension, including html files and service
+workers.
+
+{% Aside %}
+
+These page types are served from the `chrome-extension://` protocol. For instance, a page in your
+extension is `chrome-extension://EXTENSION_ID/foo.html`.
+
+{% endAside %}
+
+**`sandbox`**: This policy covers any [sandboxed extension pages][manifest-sandbox] that your
+extension uses.
+
+In addition, Manifest V3 disallows certain CSP modifications for `extension_pages` that were
+permitted in Manifest V2. The `script-src,` `object-src`, and `worker-src` directives may only have
+the following values:
+
+*   `self`
+*   `none`
+*   Any localhost source, (`http://localhost`,  `http://127.0.0.1`, or any port on those domains)
+
+CSP modifications for `sandbox` have no such new restrictions.
+
+Starting in Chrome 102, Manifest V3 extensions can include `wasm-unsafe-eval` in the CSP to use WebAssembly
+files bundled as part of the extension.
+
+ {: #content-security-policy }
+
+An extension's [content security policy][csp] (CSP) was specified in Manifest V2 as a string; in
+Manifest V3 it is an object with members representing alternative CSP contexts:
+
+{% Columns %}
+```json
+// Manifest V2
+{
+  ...
+  "content_security_policy": "..."
+  ...
+}
+```
+
+```json
+// Manifest V3
+{
+  ...
+  "content_security_policy": {
+    "extension_pages": "...",
+    "sandbox": "..."
+  }
+  ...
+}
+```
+{% endColumns %}
+
+**`extension_pages`**:  This policy covers pages in your extension, including html files and service
+workers.
+
+{% Aside %}
+
+These page types are served from the `chrome-extension://` protocol. For instance, a page in your
+extension is `chrome-extension://EXTENSION_ID/foo.html`.
+
+{% endAside %}
+
+**`sandbox`**: This policy covers any [sandboxed extension pages][manifest-sandbox] that your
+extension uses.
+
+In addition, Manifest V3 disallows certain CSP modifications for `extension_pages` that were
+permitted in Manifest V2. The `script-src,` `object-src`, and `worker-src` directives may only have
+the following values:
+
+*   `self`
+*   `none`
+*   Any localhost source, (`http://localhost`,  `http://127.0.0.1`, or any port on those domains)
+
+CSP modifications for `sandbox` have no such new restrictions.
+
+Starting in Chrome 102, Manifest V3 extensions can include `wasm-unsafe-eval` in the CSP to use WebAssembly
+files bundled as part of the extension.
 
 
 

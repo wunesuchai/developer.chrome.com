@@ -63,8 +63,45 @@ There are some changes you may need to make based on changes to the API surface.
 - Move calls to `executeScript()`, `insertScript()`, and `removeCSS()` from the `tabs` interface to the `scripting` interface. See the [section in][mv3-scripting] *Migrating to Manifest V3* for information on changes to the objects passed to these functions.
 
 
+### Remove execution of remote code and arbitrary strings {: #api-remote-code}
+
+*You can no longer [execute external logic][mv3-remote-code] using `executeScript()`, `eval()`, and `new Function()`.*
+
+- Move all external code (JS, Wasm, CSS) into your extension bundle.
+- Update script and style references to load resources from the extension bundle.
+- Use [`chrome.runtime.getURL()`][runtime-geturl] to build resource URLs at runtime.
 
 
+### Replace functions that expect a Manifest V2 background context {: #api-background-context}
+
+*Extension scripts, `content.js` and `popup.js` specifically, cannot interact with [extension service workers][mv3-sw], the replacement for background scripts in Manifest V3.*
+
+- Locate calls that expect a bacground context: `chrome.runtime.getBackgroundPage()`, `chrome.extension.getBackgroundPage()`, `chrome.extension.getExtensionTabs()`, and `chrome.extension.getViews()`, specifically.
+- Replace them with messages passed via `sendMessage()` from extension scripts.
+- Intercept them in the extension service worker using the `onMessage` event handler.
+
+For more information, see [Message passing][doc-messages].
+
+### Remove CORS requests from content scripts {: #security-cors }
+
+- Move these requests to the background service worker.
+- Call [`fetch()`][] rather than `XMLHttpRequest()`.
+
+```js
+fetch('https://www.example.com/data.json')
+.then(() => {
+  console.log('it worked!');
+})
+.catch(error => {
+  console.error(error);
+});
+```
+
+### Use a custom content_security_policy in manifest.json {: #security-csp }
+
+- Replace the value of `"content_security_policy"` with subfields named `"extension_pages"` and `"sandbox"` as appropriate.
+- Remove references to external domains in `script-src`, `worker-src`, `object-src`, and
+  `style-src` directives if present.
 
 [api-action]: /docs/extensions/reference/action
 [api-scripting]: /docs/extensions/reference/scripting
