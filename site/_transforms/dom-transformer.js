@@ -34,7 +34,6 @@ const domTransformer = async (content, outputPath) => {
   // These transforms mutate the cheerio object.
   prettyUrls($, outputPath, locale);
   tables($);
-  await processInlineJs($);
 
   // Return the final html.
   return $.html();

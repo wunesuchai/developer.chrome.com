@@ -1,4 +1,5 @@
 const yaml = require('js-yaml');
+const path = require('path');
 
 // Filters
 const {
@@ -19,6 +20,7 @@ const {updateSvgForInclude} = require('webdev-infra/filters/svg');
 
 // Shortcodes
 const {Blockquote} = require('webdev-infra/shortcodes/Blockquote');
+const {InlineCss} = require('webdev-infra/shortcodes/InlineCss');
 const {Codepen} = require('webdev-infra/shortcodes/Codepen');
 const {Details} = require('./site/_shortcodes/Details');
 const {DetailsSummary} = require('./site/_shortcodes/DetailsSummary');
@@ -40,8 +42,8 @@ const {Partial} = require('./site/_shortcodes/Partial');
 
 // Transforms
 const {domTransformer} = require('./site/_transforms/dom-transformer-pool');
-const {purifyCss} = require('./site/_transforms/purify-css-pool');
-const {minifyHtml} = require('./site/_transforms/minify-html');
+const {InlineCssTransform} = require('webdev-infra/transforms/inlineCss');
+const {MinifyHtmlTransform} = require('webdev-infra/transforms/minifyHtmlAll');
 
 // Plugins
 const md = require('./site/_plugins/markdown');
@@ -127,6 +129,7 @@ module.exports = eleventyConfig => {
   eleventyConfig.addFilter('typeof', x => typeof x);
 
   // Add shortcodes
+  eleventyConfig.addShortcode('InlineCss', InlineCss);
   eleventyConfig.addShortcode('Codepen', Codepen);
   eleventyConfig.addShortcode('IFrame', IFrame);
   eleventyConfig.addShortcode('Glitch', Glitch);
@@ -164,8 +167,17 @@ module.exports = eleventyConfig => {
   // These transforms should _always_ go last because they look at the final
   // HTML for the page and inline CSS / minify.
   if (isProduction) {
-    eleventyConfig.addTransform('purifyCss', purifyCss);
-    eleventyConfig.addTransform('minifyHtml', minifyHtml);
+    eleventyConfig.addTransform('inlineCss', (new InlineCssTransform()).configure({
+      cssBasePath: path.join(__dirname, 'dist'),
+      jsPaths: [
+        path.join(__dirname, 'dist/js/**/*.js'),
+      ],
+      insert: (content, result) => {
+        return content.replace('</head>', `<style>${result}</style></head>`)
+      }
+    }));
+
+    eleventyConfig.addTransform('minifyHtml', (new MinifyHtmlTransform()).configure({}));
   }
 
   return {
